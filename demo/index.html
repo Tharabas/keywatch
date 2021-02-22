@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Keywatch DEMO</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bulma@0.9.2/css/bulma.css"
+          integrity="sha256-yImvCCH14bBb1CP+8UKH4Kq6Hd77ErtYaM4V+QSvPwc="
+          crossorigin="anonymous">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/prism-themes@1.5.0/themes/prism-darcula.css"
+          integrity="sha256-MU4lmzIrdtkHgBaiPoeY3VVRFaa/zuV+kWgX++BpBjU="
+          crossorigin="anonymous">
+    <style type="text/css">
+#app { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+.step { margin-bottom: 1em; }
+.message, .message-body { transition: all 200ms linear }
+.message:last-child { margin-top: 1em; }
+.slide-enter-active { transition: all .5s ease-in-out; }
+.slide-leave-active { transition: all .5s ease-in-out; }
+.slide-enter    { opacity: 0; transform: translateY( 50px); }
+.slide-leave-to { opacity: 0; transform: translateY(-50px); }
+.slide-leave-to .step { margin-bottom: 0 }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.23.0/prism.min.js" data-manual></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.min.js"
+            integrity="sha256-KSlsysqp7TXtFo/FHjb1T9b425x3hrvzjMWaJyKbpcI="
+            crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div id="app" class="is-flex is-flex-direction-column is-align-content-stretch">
+      <header>
+        <div class="container">
+          <div class="hero">
+            <div class="hero-body">
+              <h1 class="title">Keywatch</h1>
+              <h2>A browser library for watching/listening to keyboard events</h2>
+            </div>
+          </div>
+        </div>
+      </header>
+      <section class="is-flex-grow-1 is-align-items-center">
+        <div class="container">
+          <t-page :page="1" :current-page="page">
+            <t-step :step="step" :confirmed="confirmed" :min-step="1" :max-step="3">
+              <template #default>
+                <p>Welcome to the interactive tutorial,</p>
+                <p>let's see how you can utilize <strong>Keywatch</strong>.</p>
+              </template>
+              <template #confirm>
+                Please hit <code>Enter</code> when you are ready.
+              </template>
+            </t-step>
+            <t-step :step="step" :confirmed="confirmed" :min-step="2">
+              <p>To watch for the <code>Enter</code> key you would have to call</p>
+              <t-code>Keywatch.watch('Enter', doSomething)</t-code>
+              <p>where <code>doSomething</code> is the handler function that does stuff for you.</p>
+              <template #confirm>
+                Please hit <code>Enter</code> to continue.
+              </template>
+            </t-step>
+            <t-step :step="step" :confirmed="confirmed" :min-step="3">
+              <p>
+                We can specify keyboard modifiers to further adjust if we only want to listen to key combinations.
+                These are <code>Shift</code>, <code>Alt</code>, <code>Control</code> and <code>Meta</code>.
+                The latter is <code>Command</code> on Macs and <code>Win</code> on Windows.
+                Each of them has a <em>us-ascii short</em> representation: <code>+#^@</code>,
+                and even accept the usual mac-keys <code>⇧⌥⌘</code>
+              </p>
+              <p>The following examples will trigger for the same actions</p>
+
+              <div class="columns my-1">
+                <div class="column">
+                  <t-confirm :value="keyLesson.Shift">Shift</t-confirm>
+                  <t-code>watch("Shift KeyA", action)
+watch("+a", action)
+watch("⇧a", action)</t-code>
+                </div>
+                <div class="column">
+                  <t-confirm :value="keyLesson.Alt">Alt</t-confirm>
+                  <t-code>watch("Alt KeyS", action)
+watch("#s", action)
+watch("⌥s", action)</t-code>
+                </div>
+                <div class="column">
+                  <t-confirm :value="keyLesson.Control">Control</t-confirm>
+                  <t-code>watch("Control KeyD", action)
+watch("ctrl d", action)
+watch("^d", action)</t-code>
+                </div>
+                <div class="column">
+                  <t-confirm :value="keyLesson.Meta">{{ metaName }}</t-confirm>
+                  <t-code>watch("Meta KeyF", action)
+watch("@f", action)
+watch("⌘f", action)</t-code>
+                </div>
+              </div>
+              <p>Give these key-combinations a try: {{ keyLessonsDoneCount }} / 4</p>
+              <template #confirm>
+                Press <code>Enter</code> to continue
+              </template>
+            </t-step>
+          </t-page>
+          <t-page :page="2" :current-page="page">
+            <t-step :step="step" :confirmed="confirmed" :min-step="1">
+              <p>You may have noticed, that <code>Control-D</code> or <code>{{ metaName }}-F</code> may have triggered a default browser action.</p>
+              <p>In order to prevent these we have to prefix the key definition with a <code>NoDefault</code> (short <code>!</code>)</p>
+              <div class="columns my-1">
+                <div class="column">
+                  <t-confirm :value="preventLesson.Control">Control-D</t-confirm>
+                  <t-code>watch("NoDefault Control KeyD", action)
+watch("!^d", action)</t-code>
+                </div>
+                <div class="column">
+                  <t-confirm :value="preventLesson.Meta">{{ metaName }}-F</t-confirm>
+                  <t-code>watch("NoDefault {{metaName}} KeyF", action)
+watch("!@f", action)</t-code>
+                </div>
+              </div>
+              <div class="message is-warning">
+                <div class="message-body">Depending on your browser or system this might not always work!</div>
+              </div>
+              <template #confirm>
+                Press <code>Enter</code> to continue
+              </template>
+            </t-step>
+            <t-step :step="step" :confirmed="confirmed" :min-step="2">
+              <p>
+                You can also use more than one <em>Modifier</em> for a Key.
+                Just keep in mind that the key definition is <em>always exact</em>.
+                This means that <code>Shift KeyA</code> will not trigger on <code>Shift Alt KeyA</code>!
+              </p>
+              <div class="columns my-1">
+                <div class="column">
+                  <t-confirm :value="preventLesson.Shift">Shift-E</t-confirm>
+                  <t-code>watch("Shift KeyE", action)
+watch("+KeyE", action)</t-code>
+                </div>
+                <div class="column">
+                  <t-confirm :value="preventLesson.ShiftAlt">Shift-Alt-E</t-confirm>
+                  <t-code>watch("Shift Alt KeyE", action)
+watch("+#KeyE", action)</t-code>
+                </div>
+                <div class="column">
+                  <t-confirm :value="preventLesson.ShiftControl">Shift-Control-E</t-confirm>
+                  <t-code>watch("Shift Control KeyE", action)
+watch("+^KeyE", action)</t-code>
+                </div>
+              </div>
+              <template #confirm>
+                Press <code>Enter</code> to finish
+              </template>
+            </t-step>
+          </t-page>
+          <t-page :page="3" :current-page="page">
+            That's all for now, but I hope it will receive an update shortly.
+          </t-page>
+        </div>
+      </section>
+      <footer class="footer">
+        <div class="content has-text-centered">
+          This Demo is powered by <a href="https://bulma.io/">Bulma</a> (CSS),
+          <a href="https://vuejs.org/">Vue</a> (Dynamics),
+          <a href="https://prismjs.com/">Prism.js</a> (Syntax Highlighting)
+        </div>
+      </footer>
+    </div>
+
+    <script src="../dist/iife.js"></script>
+    <script>
+Vue.component('t-confirm', {
+  template: `<div class="has-text-centered" :class="'has-background-' + (value ? 'success' : 'danger')"><slot /></div>`,
+  props: {
+    value: { type: Boolean, required: true }
+  }
+})
+
+Vue.component('t-page', {
+  template: `
+    <transition name="slide">
+      <section v-if="currentPage === page" class="page"><slot /></section>
+    </transition>`,
+  props: {
+    page: { type: Number, required: true },
+    currentPage: { type: Number, required: true },
+  }
+})
+
+Vue.component('t-step', {
+  template: `
+    <transition name="slide">
+      <section v-if="isVisible" class="step">
+        <slot />
+        <transition v-if="$slots.confirm"  name="slide">
+          <div v-if="step <= this.minStep" class="message" :class="isConfirmed ? 'is-success' : 'is-danger'">
+            <div class="message-body"><slot name="confirm" /></div>
+          </div>
+        </transition>
+      </section>
+    </transition>
+  `,
+  props: {
+    step: { type: Number, required: true },
+    confirmed: { type: Number, required: true },
+    minStep: { type: Number, required: true },
+    maxStep: { type: Number, default: 99 },
+  },
+  computed: {
+    isVisible () { return this.step >= this.minStep && this.step <= this.maxStep },
+    isConfirmed () { return this.confirmed >= this.minStep },
+  }
+})
+
+Vue.component('t-code', {
+  template: '<pre><code ref="code" class="language-javascript"><slot /></code></pre>',
+  mounted () {
+    this.$nextTick(() => {
+      Prism.highlightElement(this.$refs.code)
+    })
+  }
+})
+
+new Vue({
+  el: '#app',
+  mixins: [
+    Keywatch.Mixin('keys')
+  ],
+  data: {
+    page: 1,
+    step: 1,
+    confirmed: 0,
+    handle: null,
+
+    keyLesson: {
+      Shift: false,
+      Alt: false,
+      Control: false,
+      Meta: false,
+    },
+
+    preventLesson: {
+      Control: false,
+      Meta: false,
+      Shift: false,
+      ShiftAlt: false,
+      ShiftControl: false,
+    }
+  },
+  computed: {
+    keys () {
+      const keys = {}
+      keys.Enter = () => {
+        if (this.page === 1) {
+          switch (this.step) {
+            case 1: this.confirm(1, 1); return
+            case 2: this.confirm(1, 2); return
+            case 3: this.confirm(1)
+          }
+        } else if (this.page === 2) {
+          switch (this.step) {
+            case 1: this.confirm(2, 1); return
+            case 2: this.confirm(2, 2); return
+            case 3: this.confirm(2)
+          }
+        }
+      }
+      if (this.page === 1) {
+        keys.Shift_KeyA = () => this.keyLesson.Shift = true
+        keys.Alt_KeyS = () => this.keyLesson.Alt = true
+        keys.Control_KeyD = () => this.keyLesson.Control = true
+        keys.Meta_KeyF = () => this.keyLesson.Meta = true
+      } else if (this.page === 2) {
+        keys['!^d'] = () => this.preventLesson.Control = true
+        keys['!@f'] = () => this.preventLesson.Meta = true
+        keys['Shift KeyE'] = () => this.preventLesson.Shift = true
+        keys['Shift Alt KeyE'] = () => this.preventLesson.ShiftAlt = true
+        keys['Shift Control KeyE'] = () => this.preventLesson.ShiftControl = true
+      }
+
+      return keys
+    },
+    isMac () { return navigator.userAgent.includes('Macintosh') },
+    isWin () { return navigator.userAgent.includes('Windows') },
+    isOther () { return !this.isMac && !this.isWin },
+    metaName () {
+      if (this.isMac) return 'Command'
+      if (this.isWin) return 'Win'
+      return 'Meta'
+    },
+    keyLessonsDoneCount () { return Object.values(this.keyLesson).reduce((a, b) => a + Number(b), 0) },
+    allKeyLessonsDone () { return Object.values(this.keyLesson).every(x => x) },
+  },
+  methods: {
+    confirm (page, step = 0) {
+      if (this.page !== page || (step > 0 && this.step !== step)) return
+      this.confirmed = this.step
+      this.handle = setTimeout(() => {
+        if (step === 0) {
+          this.page = page + 1
+          this.step = 1
+          this.confirmed = 0
+        } else {
+          this.step = step + 1
+        }
+      }, 500)
+    },
+    reset () {
+      this.page = 1
+      this.step = 1
+      this.confirmed = 0
+    }
+  },
+})
+    </script>
+  </body>
+</html>

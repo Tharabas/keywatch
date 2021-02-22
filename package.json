@@ -1,0 +1,36 @@
+{
+  "name": "keywatch",
+  "version": "1.0.0",
+  "description": "A browser library for watching/listening to keyboard events",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dist": "rollup --config"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tharabas/keywatch.git"
+  },
+  "keywords": [
+    "keyboard",
+    "key",
+    "hotkey",
+    "event",
+    "listen",
+    "listener",
+    "watcher",
+    "keycodes",
+    "shortcuts",
+    "vue"
+  ],
+  "author": "Ben Schüttler <ben@tharabas.de>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tharabas/keywatch/issues"
+  },
+  "homepage": "https://github.com/tharabas/keywatch#readme",
+  "devDependencies": {
+    "rollup": "^2.39.0",
+    "rollup-plugin-terser": "^7.0.2"
+  }
+}
