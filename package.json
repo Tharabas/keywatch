@@ -1,6 +1,6 @@
 {
   "name": "keywatch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A browser library for watching/listening to keyboard events",
   "main": "index.js",
   "scripts": {

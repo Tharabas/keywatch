@@ -139,6 +139,19 @@ watch('i,d,d,q,d', enableGodmode)
 
 ### All key options
 
+| Option | Short | Description | Example |
+| ------ |:-----:| ----------- | ------- |
+| Shift | + *or* ⇧ | requires the shift key to be down | +ArrowUp *or* ⇧KeyX |
+| Alt | # *or* ⌥ | requires the alt key to be down | #e / ⌥Enter |
+| Control | ^ *or* Ctrl | requires the **Control** key to be down | ^Space |
+| Meta / Command | @ *or* ⌘ | requires the Meta/Win/Command key to be down | @KeyQ *or* ⌘KeyL |
+| NoInput | : | does not trigger in `INPUT` *or* `TEXTAREA` *or* `SELECT` input fields | :Backspace |
+| NoDefault | ! | Prevents default behaviour (when applicable) if the *whole sequence* has been matched | !⌘F | 
+
+## Handling Events
+
+In most cases you won't care much for the event, that triggered the key sequence, but in case you do,
+you can access it in the  
 
 ## Unwatching
 

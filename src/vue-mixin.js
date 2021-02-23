@@ -1,37 +1,28 @@
-import { isObject, isString } from './lib'
-import { unwatchAll, watch } from './keys'
+import { isString } from './lib'
+import { unwatchAll, watch, watchSequence, unfoldKeyDefinition } from './keys'
 
+/**
+ * Internal function to handle Vue-Mixin binding for key-reactions.
+ *
+ * @param {Vue} instance the vue instance
+ * @param {*}   keys     the defined keys to watch
+ * @param {*}   options  watcher options
+ * @return {(function(): void)|Promise<* | (function(): void)>}
+ */
 function watchKeys (instance, keys, options) {
-  if (instance instanceof Promise) {
-    return instance.then(result => watchKeys(instance, result, options))
+  // when a promise is provided
+  if (keys instanceof Promise) {
+    return keys.then(result => watchKeys(instance, result, options))
   }
-
-  if (isObject(keys)) {
-    keys = Object.keys(keys).map((key) => {
-      return { key, handler: keys[key] }
-    })
-  }
-
-  if (!Array.isArray(keys)) {
-    throw new Error(`shortcuts should be defined as an array!`)
-  }
-
-  // parse shortcuts
-  const unwatcher = []
-  for (const definition of keys) {
-    const definitionKeys = definition.keys || definition.key
-    let reaction = definition.handler
-    if (isString(reaction)) {
-      if (this.hasOwnProperty(reaction)) {
-        reaction = instance[reaction]
-      } else {
-        console.warn(`skipped binding %O to undefined method '%O' on %O`, definitionKeys, reaction, instance)
-        continue
-      }
+  const unwatcher = unfoldKeyDefinition(keys).flatMap(definition => {
+    try {
+      const dispose = watchSequence(definition.sequence, definition.handler.bind(instance), instance)
+      return [dispose]
+    } catch (ex) {
+      console.error('Failed to watch %O', definition, err)
+      return []
     }
-    const dispose = watch(definitionKeys, reaction.bind(instance), instance)
-    unwatcher.push(dispose)
-  }
+  })
   return () => unwatcher.forEach((dispose, idx) => {
     try {
       dispose()
@@ -78,34 +69,35 @@ export default function (keys = null, options = {}) {
         return
       }
 
-
       // watch property / computed
       if (isString(keys)) {
-        let unwatch = null
+        let unwatch = Promise.resolve(() => {})
         const updateWith = to => {
-          if (unwatch) try {
-            unwatch()
-          } catch (ex) {
-            console.warn('failed to unwatch', this, ex)
-          }
+          unwatch.then(disposer => {
+            try {
+              disposer()
+            } catch (ex) {
+              console.warn('failed to unwatch', this, ex)
+            }
 
-          if (to) {
-            unwatch = watchKeys(this, to, options)
-          } else {
-            unwatch = null
-          }
+            if (to) {
+              unwatch = watchKeys(this, to, options)
+              if (!(unwatch instanceof Promise)) {
+                unwatch = Promise.resolve(unwatch)
+              }
+            } else {
+              unwatch = Promise.resolve(() => {})
+            }
+          })
         }
+        // run once on mounting
         updateWith(this[keys])
+        // run again when the data changes
         this.$watch(keys, updateWith)
         return
       }
 
-      // use a one-shot version, probably an object or object provider
-      if (typeof keys === 'function') {
-        watchKeys(this, keys.call(this), options)
-      } else {
-        watchKeys(this, keys, options)
-      }
+      watchKeys(this, keys, options)
     },
     /**
      * Automatically unwatch all watched keys

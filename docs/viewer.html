@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Keywatch viewer</title>
+
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bulma@0.9.2/css/bulma.css"
+          integrity="sha256-yImvCCH14bBb1CP+8UKH4Kq6Hd77ErtYaM4V+QSvPwc="
+          crossorigin="anonymous">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/buefy@0.9.4/dist/buefy.min.css"
+          integrity="sha256-eUiH9fgckNBx/Haew+8UGdXpRQlKbdd7/tfZCzpXLFA="
+          crossorigin="anonymous">
+    <style type="text/css">
+#app { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+.step { margin-bottom: 1em; }
+.message, .message-body { transition: all 200ms linear }
+.message:last-child { margin-top: 1em; }
+.slide-enter-active { transition: all .5s ease-in-out; }
+.slide-leave-active { transition: all .5s ease-in-out; }
+.slide-enter    { opacity: 0; transform: translateY( 50px); }
+.slide-leave-to { opacity: 0; transform: translateY(-50px); }
+.slide-leave-to .step { margin-bottom: 0 }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.min.js"
+            integrity="sha256-KSlsysqp7TXtFo/FHjb1T9b425x3hrvzjMWaJyKbpcI="
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/buefy@0.9.4/dist/buefy.min.js"
+            integrity="sha256-E5bEDB8CfU4r0sLWd6+Cc/ZNf64uaaZdQ0k7afkcUaQ="
+            crossorigin="anonymous"></script>
+
+  </head>
+  <body>
+    <div id="app" class="is-flex is-flex-direction-column is-align-content-stretch">
+      <header>
+        <div class="hero">
+          <div class="hero-body">
+            <div class="container">
+              <h1 class="title">Keywatch - Viewer</h1>
+              <h2 class="subtitle">Try and view key bindings here. Also check whether the binding works in your current browser.</h2>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="is-flex-grow-1 is-align-items-center">
+        <div class="container">
+          <div class="columns">
+            <div class="column">
+              <table class="table is-striped is-fullwidth is-hoverable">
+                <thead>
+                  <tr>
+                    <th width="20">#</th>
+                    <th width="100">code</th>
+                    <th width="60">key</th>
+                    <th width="60">keyCode</th>
+                    <th>short</th>
+                    <th>full</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(event, idx) in events"
+                    :key="idx"
+                    :class="{ 'has-background-warning-light': isModifier(event.key) }"
+                    @click="select(idx + 1)"
+                  >
+                    <th>{{ idx + 1 }}</th>
+                    <th>{{ event.code }}</th>
+                    <th>{{ event.key }}</th>
+                    <th class="has-family-monospace">{{ event.keyCode }}</th>
+                    <th>{{ event | formatKeyEvent(true, useMacVariants) }}</th>
+                    <th>{{ event | formatKeyEvent }}</th>
+                  </tr>
+                </tbody>
+                <tbody v-if="events.length === 0">
+                  <tr>
+                    <td colspan="99">
+                      <div class="message is-info">
+                        <div class="message-body">
+                          Type something to see the codes.
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="column">
+              <div>
+                <b-field label="Options">
+                  <b-switch v-model="useMacVariants">For Mac</b-switch>
+                  <b-switch v-model="useShort">Short</b-switch>
+                  <b-switch v-model="asArray">As Array</b-switch>
+                </b-field>
+                <div v-if="selection">
+                  <b-field label="Sequence" :type="{ 'is-danger': parsed.error }" :message="parsed.error">
+                    <b-input v-model="currentSequence" type="textarea" class="has-family-monospace"></b-input>
+                  </b-field>
+                  <div class="my-1">
+                    <b-button @click="addSequence" :disabled="parsed.error">Watch</b-button>
+                    <b-button @click="reset">Clear</b-button>
+                  </div>
+                </div>
+                <div v-else>
+                  <div class="message is-info">
+                    <div class="message-body">
+                      Click on a key on the left so select the whole sequence.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer class="footer">
+        <div class="content has-text-centered">
+          Powered by <a href="https://bulma.io/">Bulma</a> (CSS),
+          <a href="https://vuejs.org/">Vue</a> (Dynamics),
+          <a href="https://buefy.org/">Buefy</a> (Vue+Bulma Binding)
+        </div>
+      </footer>
+    </div>
+    <script src="../dist/iife.js"></script>
+    <script>
+const { Key, KeySequence, formatKeyEvent } = Keywatch
+
+class KeyHit {
+  constructor (e) {
+    this.keys = [e]
+  }
+
+  get head () { return this.keys[0] }
+  get type () { return this.head.type }
+  get key () { return this.head.key }
+  get code () { return this.head.code }
+  get keyCode () { return this.head.keyCode }
+  get shiftKey () { return this.head.shiftKey }
+  get altKey () { return this.head.altKey }
+  get ctrlKey () { return this.head.ctrlKey }
+  get metaKey () { return this.head.metaKey }
+
+  isCompatible (e) {
+    return e.code === this.code && this.type !== 'keyup'
+  }
+
+  add (e) {
+    if (!this.isCompatible(e)) throw new Error('Incompatible event')
+    this.keys.unshift(e)
+    return this
+  }
+}
+
+const Modifiers = ['Shift', 'Alt', 'Control', 'Meta']
+
+new Vue({
+  el: '#app',
+  filters: {
+    formatKeyEvent,
+  },
+  data: {
+    trackModifiers: false,
+    useMacVariants: navigator.userAgent.includes('Macintosh'),
+    useShort: true,
+    asArray: false,
+    events: [],
+    maxEvents: 15,
+    selection: null,
+    currentSequence: '',
+    sequenceError: null,
+    keySequences: [],
+  },
+  computed: {
+    selectionOut () {
+      const mapped = (this.selection || []).map(e => formatKeyEvent(e, this.useShort, this.useMacVariants))
+      return JSON.stringify(this.asArray ? mapped : mapped.join(','))
+    },
+    parsed () {
+      const raw = this.currentSequence.trim()
+      if (raw.length === 0) {
+        return { sequence: null, error: null }
+      }
+      try {
+        const json = JSON.parse(raw)
+        const sequence = KeySequence.parse(json)
+        return { sequence, error: null }
+      } catch (ex) {
+        console.warn('invalid source sequence', raw, ex)
+        return { sequence: null, error: ex.message }
+      }
+    },
+  },
+  watch: {
+    selectionOut (to) {
+      this.currentSequence = to
+    }
+  },
+  created () {
+    document.addEventListener('keydown', this.addEvent)
+    document.addEventListener('keyup', this.addEvent)
+  },
+  methods: {
+    addEvent (e) {
+      if (!this.trackModifiers && this.isModifier(e.key)) {
+        return
+      }
+      e.preventDefault()
+
+      if (this.events.length === 0) {
+        this.events.unshift(new KeyHit(e))
+      } else {
+        const top = this.events[0]
+        if (top.isCompatible(e)) {
+          this.events.shift()
+          this.events.unshift(top.add(e))
+        } else {
+          this.events.unshift(new KeyHit(e))
+        }
+      }
+
+      while (this.events.length > this.maxEvents) this.events.pop()
+    },
+    isModifier (key) {
+      return Modifiers.includes(key)
+    },
+    select (size) {
+      this.selection = this.events.slice(0, size).reverse()
+    },
+    addSequence () {
+
+      try {
+        const sequence = KeySequence.parse(this.currentSequence)
+        this.sequenceError = null
+      } catch (ex) {
+        this.sequenceError = ex.message
+      }
+    },
+    reset () {
+      this.events.splice(0, this.events.length)
+      this.selection = null
+    },
+  }
+})
+    </script>
+  </body>
+</html>

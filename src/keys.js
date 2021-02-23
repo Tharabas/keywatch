@@ -1,6 +1,6 @@
 /** @global module */
 
-import { isString, last, contains } from './lib'
+import { isString, last, contains, isObject } from './lib'
 
 //
 // shortcut related functions afterwards
@@ -31,7 +31,22 @@ const EventTypeModifier = Object.freeze(['up', 'down'])
 const InputElements = Object.freeze(['INPUT', 'TEXTAREA', 'SELECT'])
 
 // checks whether the client runs on a mac, used only for formatting
-const isMac = navigator.userAgent.indexOf('Macintosh') !== -1
+const isMac = navigator.platform.includes("Mac")
+
+// checks whether the client runs on a windows machine
+const isWin = navigator.platform.includes("Win")
+
+// check whether the client is neither on Mac nor on Windows
+const isOther = !isMac && !isWin
+
+function isOnSystem (system) {
+  switch ((system || '').trim()) {
+    case '': return true
+    case 'mac': return isMac
+    case 'win': return isWin
+    default: return false
+  }
+}
 
 /**
  * Checks if a provided KeyboardEvent targets an InputElement
@@ -46,21 +61,28 @@ export function isInInputElement (event) {
 /**
  * Formats a KeyboardEvent as a string
  *
- * @param {KeyboardEvent} e
- * @return {string}
+ * @param {KeyboardEvent} e        the key event to stringify
+ * @param {boolean} [short=false]  render the short version of the keys
+ * @param {boolean} [useMac=false] use the mac variant of the modifiers
+ * @return {string} a string, that should be a valid key
  */
-export function formatKeyEvent (e) {
+export function formatKeyEvent (e, short = false, useMac = false) {
   let k = ''
 
-  if (e.shiftKey) k += 'Shift '
-  if (e.ctrlKey) k += 'Control '
-  if (e.altKey) k += 'Alt '
-  if (e.metaKey) k += 'Meta '
+  if (e.shiftKey) k += ['Shift ', useMac ? '⇧' : '+'][+short]
+  if (e.ctrlKey) k += ['Control ', '^'][+short]
+  if (e.altKey) k += ['Alt ', useMac ? '⌥' : '#'][+short]
+  if (e.metaKey) k += [useMac ? 'Meta ' : 'Command ', useMac ? '⌘' : '@'][+short]
 
-  k += e.code
-  if (e.key !== e.code) k += '(' + e.key + ')'
+  const alias = codeToAlias(e.code)
+  if (short && alias) {
+    k += alias
+  } else if (short && e.code.toLowerCase() === ('key' + e.key).toLowerCase()) {
+    k += e.key
+  } else {
+    k += e.code
+  }
 
-  // if (e.type === 'keyup') k += ' Up'
   if (e.type === 'keydown') k += ' Down'
   if (e.type === 'keypress') k += ' Press'
 
@@ -126,7 +148,6 @@ function handleGlobalKeys (event) {
     }
     if (listener.matches(keys)) {
       matched = true
-      // console.log(`Matched sequence ${listener}`)
       listener.reaction(event, listener.sequence)
 
       if (listener.preventsDefault) {
@@ -157,19 +178,140 @@ function handleGlobalKeys (event) {
 
 // JSDoc notation for a KeyboardEvent
 /**
- * @callback keyReaction
+ * @callback KeyReaction
  * @param {KeyboardEvent} event
+ * @param {KeySequence} the matched sequence
+ */
+
+/**
+ * @typedef {KeySequence | Key | string | { [string]: KeyProvider }} KeyProvider
+ */
+
+/**
+ * @typedef {Object} KeySequenceDefinition
+ * @property {KeySequence} sequence
+ * @property {KeyReaction} handler
+ */
+
+/**
+ * @callback Disposer
  */
 
 /**
  * Register a Key or Sequence of Keys to a handler method.
  *
- * @param {KeySequence|Key|string} sequence the key or sequence to match
- * @param {keyReaction} reaction the handler reaction to the sequence
- * @param {*|null} ref a reference for removal of the handler
- * @return {function(): void} a disposal function for the registered reaction
+ * @param {function(): KeyProvider|KeyProvider} sequence the key, sequence or KeyProvider to match
+ * @param {KeyReaction|null}                    reaction the handler function to the sequence(s)
+ * @param {*}                                   ref      a reference for removal of the handler
+ * @return {Disposer}                                    a disposal function for the registered reactions
  */
 export function watch (sequence, reaction, ref = null) {
+  if (ref === null && typeof reaction !== 'function') {
+    // shift ref right if it was provided in the reaction slot
+    ref = reaction
+    reaction = null
+  }
+
+  const definitions = unfoldKeyDefinition(sequence, reaction)
+  const unwatcher = definitions.map(def => {
+    try {
+      const dispose = watchSequence(def.sequence, def.handler, ref)
+      return {
+        dispose,
+        sequence: def.sequence,
+        handler: def.handler,
+        ref
+      }
+    } catch (ex) {
+      return null
+    }
+  }).filter(def => def !== null)
+
+  return () => {
+    unwatcher.forEach((u, idx) => {
+      try { u.dispose() } catch (ex) {
+        console.warn('failed to unwatch', idx, ex)
+      }
+    })
+  }
+}
+
+/**
+ * Unfolds a compressed definition to an array KeySequenceDefinitions.
+ *
+ * @param {KeyProvider} definition
+ * @param {KeyReaction|null} [handler=null]
+ * @return {KeySequenceDefinition[]}
+ */
+export function unfoldKeyDefinition (definition, handler = null) {
+  // first param is a function, eval and try again!
+  if (typeof definition === 'function') {
+    return unfoldKeyDefinition(definition(), handler)
+  }
+
+  // definition is an object, unfold
+  if (isObject(definition)) {
+    return unfoldKeyDefinition(unfoldKeyObject(definition, ''))
+  }
+
+  if (isString(definition)) {
+    return unfoldKeyDefinition([{ keys: definition, handler }])
+  }
+
+  if (!Array.isArray(definition)) {
+    throw new Error(`sequence should be defined as an array`)
+  }
+
+  if (handler != null) {
+    return unfoldKeyDefinition([{ keys: definition, handler }])
+  }
+
+  // until the definition should only contain { sequence, handler }
+  return definition.map((def, index) => {
+    const seq = def.sequence || def.keys || def.key
+    try {
+      const sequence = KeySequence.parse(seq)
+      return { sequence, handler: def.handler }
+    } catch (ex) {
+      console.warn('Dropping invalid sequence from', def, index, definition, def.handler, ex)
+      return null
+    }
+  }).filter(def => def !== null)
+}
+
+/**
+ * @param {{ [string]: function(): void }} o
+ * @param {string} prefix
+ * @return {{sequence: string, handler: *}[]}
+ */
+function unfoldKeyObject (o, prefix) {
+  return Object.keys(o).flatMap(key => {
+    const handler = o[key]
+
+    if (typeof handler === 'function') {
+      // as expected
+      return [{ keys: prefix + key, handler }]
+    }
+
+    if (isObject(handler)) {
+      // we have to go deeper
+      return unfoldKeyObject(handler, prefix + key + ' ')
+    }
+
+    throw new Error(`Expected value of key '${key}' to be a function, got '${typeof handler}'`)
+  })
+}
+
+
+/**
+ * Internal function that watches a single KeySequence
+ *
+ * @param {KeySequence}  sequence a single Sequence to match
+ * @param {KeyReaction}  reaction the handler function for the matched keys
+ * @param {*} [ref=null]
+ * @return {Disposer}             a disposal function for the registered reactions
+ */
+export function watchSequence(sequence, reaction, ref = null) {
   const listener = new KeySequenceListener(sequence, reaction, ref)
 
   if (listener.keyCount > MaxKeptKeys) {
@@ -193,7 +335,7 @@ export function watch (sequence, reaction, ref = null) {
  *
  * @param {KeySequenceListener} listener
  */
-export function unwatch (listener) {
+function unwatch (listener) {
   for (let i = listeners.length - 1; i >= 0; i--) {
     if (listeners[i] === listener) {
       listeners.splice(i, 1)
@@ -214,13 +356,8 @@ export function of (ref) {
     watch (sequence, reaction) {
       return watch(sequence, reaction, ref)
     },
-    unwatch (reaction) {
-      if (typeof reaction === 'undefined') {
-        // unwatch all
-        unwatchAll(ref)
-      } else {
-        unwatch(reaction)
-      }
+    unwatch () {
+      unwatchAll(ref)
     }
   }
 }
@@ -257,6 +394,33 @@ function afterUnwatch () {
 // classes
 //
 
+// noinspection NonAsciiCharacters
+const CodeAliases = {
+  '↑': 'ArrowUp',
+  '↓': 'ArrowDown',
+  '←': 'ArrowLeft',
+  '→': 'ArrowRight',
+  '⎋': 'Escape',
+  '⇥': 'Tab',
+  '⏎': 'Enter',
+  '⌤': 'NumpadEnter',
+  '⇞': 'PageUp',
+  '⇟': 'PageDown',
+  '↖︎': 'Home',
+  '↘︎': 'End',
+  '⌫': 'Backspace',
+  '⌦': 'Delete',
+  '␣': 'Space',
+}
+
+function codeToAlias (code) {
+  return Object.keys(CodeAliases).find(key => CodeAliases[key] === code)
+}
+
+function replaceAliases (s) {
+  return Object.keys(CodeAliases).reduce((re, alias) => re.replace(alias, ' ' + CodeAliases[alias] + ' '), s)
+}
+
 /**
  * Represents a single Key for matching.
  */
@@ -282,7 +446,7 @@ export class Key {
   }
 
   matches (e) {
-    // can't match if is's the wrong type (up/down/press)
+    // can't match if it is the wrong type (up/down/press)
     if (e.type !== this.type) return false
 
     // when inInput is false skip if the element targets an input element
@@ -341,17 +505,20 @@ export class Key {
       return definition
     }
 
+    if (definition.trim().length === 0) {
+      throw new Error('Key definition must not be empty!')
+    }
+
     // unfold modifiers
-    const parsed = definition
-      .replace(/:/, ' NoInput ')
-      .replace(/([@⌘]|Command)/i, ' Meta ')
-      .replace(/(\^|ctrl)/, ' Control ')
-      .replace(/([#⌥]+)/, ' Alt ')
-      .replace(/[+⇧]+/, ' Shift ')
-      .replace(/⎋/, ' Escape ')
-      .replace(/⏎/, ' Return ')
-      .replace(/↑/, ' Up ')
-      .replace(/↓/, ' Down ')
+    const parsed =
+      replaceAliases(
+        definition
+        .replace(/:/, ' NoInput ')
+        .replace(/([@⌘]|Command)/i, ' Meta ')
+        .replace(/(\^|ctrl)/, ' Control ')
+        .replace(/([#⌥]+)/, ' Alt ')
+        .replace(/[+⇧]+/, ' Shift ')
+      )
       .replace(/_+(\w+)/g, (_, sub) => ' ' + sub)
       .split(/\s+/)
       .map(s => s.trim())
@@ -383,16 +550,22 @@ export class Key {
 }
 
 /**
- *
+ * Defines a sequence of keys that should be matched.
  */
 export class KeySequence {
-  constructor (keys, preventDefault = false) {
+  /**
+   * @param {Key[]}   keys           a sequence of single Keys to match
+   * @param {boolean} preventDefault if true the sequence will prevent the default behaviour of the key
+   * @param {string}  onSystem       if defined the sequence will only trigger on the specified operating system
+   */
+  constructor (keys, preventDefault = false, onSystem = null) {
     if (keys.length < 1) {
       throw new Error('A KeySequence must contain at least one key, none provided!')
     }
 
     this.keys = keys
     this.preventDefault = preventDefault
+    this.onSystem = onSystem
   }
 
   get keyCount () {
@@ -404,6 +577,8 @@ export class KeySequence {
       // not possibly long enough to be a match
       return false
     }
+
+    if (!isOnSystem(this.onSystem)) return false
 
     // match the last n elements of the keyEvents
     const subEvents = keyEvents.slice(-this.keyCount)
@@ -430,23 +605,37 @@ export class KeySequence {
       return definitions
     }
 
+    let workDef = definitions
+
+    let onSystem = null
     let preventDefault = false
-    const rx = /^(!|no-?default |prevent )(.+)/i
-    if (isString(definitions) && rx.test(definitions)) {
-      rx.exec(definitions)[2]
-      preventDefault = true
+
+    if (isString(workDef)) {
+      const rxSystem = /(.*)\bon(?:ly)-?(win|mac|u?nix)\s+(.+)/i
+      const systemMatch = rxSystem.exec(workDef)
+      if (systemMatch !== null) {
+        onSystem = systemMatch[2].toLowerCase()
+        workDef = (systemMatch[1] + systemMatch[3]).trim()
+      }
+
+      const rxNoDefault = /(.*)(^!|no-?default\s+|prevent\s+)(.+)/i
+      const noDefaultMatch = rxNoDefault.exec(workDef)
+      if (noDefaultMatch !== null) {
+        preventDefault = true
+        workDef = (noDefaultMatch[1] + noDefaultMatch[3]).trim()
+      }
     }
 
-    const keyDefinitions = Array.isArray(definitions) ? definitions : definitions.split(/\s*,\s*/)
+    const keyDefinitions = Array.isArray(workDef) ? workDef : workDef.split(/\s*,\s*/)
     const keys = keyDefinitions.map((definition, index) => {
       try {
         return Key.parse(definition)
       } catch (err) {
-        throw new Error(`Unable to parse key definition #${index} "${definition}" in sequence "${definitions}"`)
+        throw new Error(`Unable to parse key definition #${index} "${definition}" in sequence "${definitions}: ${err.message}"`)
       }
     })
 
-    return new KeySequence(keys, preventDefault)
+    return new KeySequence(keys, preventDefault, onSystem)
   }
 }
 
@@ -484,3 +673,4 @@ export class KeySequenceListener {
 if (window.module && window.module.hot && window.module.hot.addDisposeHandler) {
   window.module.hot.addDisposeHandler(tearDown)
 }
+

@@ -40,5 +40,14 @@
  * The maximum time (ms) between key triggers can be adjusted by setting the ShortcutService.couplingThreshold value
  */
 
-export { of, watch, unwatch, unwatchAll } from './src/keys'
+export {
+  Key,
+  KeySequence,
+  KeySequenceListener,
+  formatKeyEvent,
+  of,
+  unwatchAll,
+  unfoldKeyDefinition,
+  watch,
+} from './src/keys'
 export { default as Mixin } from './src/vue-mixin'
