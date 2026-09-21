@@ -243,7 +243,7 @@ You can avoid this behaviour by using a quoted name:
 
 ## F.A.Q.
 
-## What is it good for?
+### What is it good for?
 
 It emerged from several work projects where we created intranet web apps, that replaced old terminal alls.
 These original apps made heavy use of keyboard shortcuts, wich we wanted to do as well.

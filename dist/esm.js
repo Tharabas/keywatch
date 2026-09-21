@@ -362,8 +362,6 @@ function watchSequence(sequence, reaction, ref = null) {
     setUp();
   }
 
-  console.log('watching', listener.sequence + '', listener);
-
   return () => unwatch(listener)
 }
 

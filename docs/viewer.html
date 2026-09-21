@@ -109,6 +109,24 @@
                     </div>
                   </div>
                 </div>
+                <div v-if="keySequences.length > 0">
+                  <b-field label="Watching">
+                    <ul>
+                      <li v-for="(seq, index) in keySequences" :key="index">
+                        <kbd>{{ seq.toString() }}</kbd>
+                      </li>
+                    </ul>
+                  </b-field>
+                </div>
+
+                <b-field label="Last hits">
+                  <ul>
+                    <li v-for="(hit, index) in lastHits" :key="index">
+                      {{ index + 1 }}. <kbd>{{ hit }}</kbd>
+                    </li>
+                  </ul>
+                </b-field>
+
               </div>
             </div>
           </div>
@@ -124,7 +142,7 @@
     </div>
     <script src="../dist/iife.js"></script>
     <script>
-const { Key, KeySequence, formatKeyEvent } = Keywatch
+const { KeySequence, formatKeyEvent, watch, unwatchAll } = Keywatch
 
 class KeyHit {
   constructor (e) {
@@ -153,23 +171,27 @@ class KeyHit {
 }
 
 const Modifiers = ['Shift', 'Alt', 'Control', 'Meta']
+const InputElements = ['INPUT', 'TEXTAREA', 'SELECT']
 
 new Vue({
   el: '#app',
   filters: {
     formatKeyEvent,
   },
-  data: {
-    trackModifiers: false,
-    useMacVariants: navigator.userAgent.includes('Macintosh'),
-    useShort: true,
-    asArray: false,
-    events: [],
-    maxEvents: 15,
-    selection: null,
-    currentSequence: '',
-    sequenceError: null,
-    keySequences: [],
+  data () {
+    return {
+      trackModifiers: false,
+      useMacVariants: navigator.userAgent.includes('Macintosh'),
+      useShort: true,
+      asArray: false,
+      events: [],
+      maxEvents: 15,
+      selection: null,
+      currentSequence: '',
+      sequenceError: null,
+      keySequences: [],
+      lastHits: [],
+    }
   },
   computed: {
     selectionOut () {
@@ -190,6 +212,7 @@ new Vue({
         return { sequence: null, error: ex.message }
       }
     },
+
   },
   watch: {
     selectionOut (to) {
@@ -197,11 +220,18 @@ new Vue({
     }
   },
   created () {
+    watch('k,e,y,w,a,t,c,h', () => {
+      console.log('you found the easter egg!')
+    })
     document.addEventListener('keydown', this.addEvent)
     document.addEventListener('keyup', this.addEvent)
   },
   methods: {
     addEvent (e) {
+      if (InputElements.includes(e.target.tagName)) {
+        return true
+      }
+
       if (!this.trackModifiers && this.isModifier(e.key)) {
         return
       }
@@ -228,17 +258,27 @@ new Vue({
       this.selection = this.events.slice(0, size).reverse()
     },
     addSequence () {
-
       try {
-        const sequence = KeySequence.parse(this.currentSequence)
+        const rawSequence = this.currentSequence
+        const keySequence = this.parsed.sequence
+        this.keySequences.push(keySequence)
+        watch(keySequence, () => this.hitSequence(keySequence, rawSequence), this)
         this.sequenceError = null
       } catch (ex) {
         this.sequenceError = ex.message
       }
     },
     reset () {
+      this.lastHits.splice(0, this.keySequences.length)
+      unwatchAll(this)
+      this.keySequences.splice(0, this.keySequences.length)
       this.events.splice(0, this.events.length)
       this.selection = null
+    },
+    hitSequence (sequence, raw) {
+      console.log('hit sequence', sequence, raw)
+      this.lastHits.push({ sequence, raw, at: new Date() })
+      while (this.lastHits.length > 10) this.lastHits.shift()
     },
   }
 })

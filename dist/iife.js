@@ -365,8 +365,6 @@ var Keywatch = (function (exports) {
       setUp();
     }
 
-    console.log('watching', listener.sequence + '', listener);
-
     return () => unwatch(listener)
   }
 
