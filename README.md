@@ -31,6 +31,11 @@ npm install --save keywatch
 yarn add keywatch
 ```
 
+```sh
+# with pnpm
+pnpm add keywatch
+```
+
 ### Integration to any HTML Page
 
 Assuming you can use JavaScript Modules you can use the default provided method as a single point of entry. You probably won't need the rest, but can access it nevertheless. 
