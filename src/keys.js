@@ -179,12 +179,19 @@ function handleGlobalKeys (event) {
 // JSDoc notation for a KeyboardEvent
 /**
  * @callback KeyReaction
- * @param {KeyboardEvent} event
- * @param {KeySequence} the matched sequence
+ * @param {KeyboardEvent} event    the event that completed the sequence
+ * @param {KeySequence}   sequence the matched sequence
  */
 
 /**
- * @typedef {KeySequence | Key | string | { [string]: KeyProvider }} KeyProvider
+ * An object of handlers, where every value is either a reaction or another level of
+ * keys - the levels are joined with a space when the object is unfolded.
+ *
+ * @typedef {Object<string, KeyReaction|KeyProviderObject>} KeyProviderObject
+ */
+
+/**
+ * @typedef {KeySequence|Key|string|Array<*>|KeyProviderObject} KeyProvider
  */
 
 /**
@@ -200,7 +207,7 @@ function handleGlobalKeys (event) {
 /**
  * Register a Key or Sequence of Keys to a handler method.
  *
- * @param {function(): KeyProvider|KeyProvider} sequence the key, sequence or KeyProvider to match
+ * @param {KeyProvider|function(): KeyProvider} sequence the key, sequence or KeyProvider to match
  * @param {KeyReaction|null}                    reaction the handler function to the sequence(s)
  * @param {*}                                   ref      a reference for removal of the handler
  * @return {Disposer}                                    a disposal function for the registered reactions
@@ -280,9 +287,9 @@ export function unfoldKeyDefinition (definition, handler = null) {
 }
 
 /**
- * @param {{ [string]: function(): void }} o
- * @param {string} prefix
- * @return {{sequence: string, handler: *}[]}
+ * @param {Object<string, *>} o      an object of handlers, possibly nested
+ * @param {string}            prefix the key prefix collected from the outer levels
+ * @return {Array<{keys: string, handler: KeyReaction}>}
  */
 function unfoldKeyObject (o, prefix) {
   return Object.keys(o).flatMap(key => {
@@ -346,10 +353,16 @@ function unwatch (listener) {
 }
 
 /**
+ * @typedef {Object} ScopedWatcher
+ * @property {function(KeyProvider, KeyReaction): Disposer} watch   registers keys under the scope
+ * @property {function(): void}                            unwatch disposes everything in the scope
+ */
+
+/**
  * Returns a scoped watch helper.
  *
- * @param ref
- * @return {{watch(*=, *=): function(): void, unwatch(*=): void}|(function(): void)}
+ * @param {*} ref          the reference all watchers of this scope are registered under
+ * @return {ScopedWatcher}
  */
 export function of (ref) {
   return {
@@ -425,6 +438,16 @@ function replaceAliases (s) {
  * Represents a single Key for matching.
  */
 export class Key {
+  /**
+   * @param {string}       code              the KeyboardEvent code or key to match
+   * @param {boolean}     [isCode=true]      match against event.code instead of event.key
+   * @param {boolean}     [shiftKey=false]   require the shift key to be down
+   * @param {boolean}     [ctrlKey=false]    require the control key to be down
+   * @param {boolean}     [altKey=false]     require the alt key to be down
+   * @param {boolean}     [metaKey=false]    require the meta key to be down
+   * @param {boolean|null} [inInput=null]    allow the match inside input elements
+   * @param {string}      [type='up']        the event type to match: up, down or press
+   */
   constructor (
     code,
     isCode = true,
@@ -445,6 +468,10 @@ export class Key {
     this.type = (type.startsWith('key') ? type : 'key' + type).toLowerCase()
   }
 
+  /**
+   * @param {KeyboardEvent} e
+   * @return {boolean}
+   */
   matches (e) {
     // can't match if it is the wrong type (up/down/press)
     if (e.type !== this.type) return false
@@ -497,7 +524,7 @@ export class Key {
   /**
    * Tries to parse a Key from a string definition.
    *
-   * @param {string} definition
+   * @param {Key|string} definition
    * @return {Key}
    */
   static parse (definition) {
@@ -571,6 +598,10 @@ export class KeySequence {
     return this.keys.length
   }
 
+  /**
+   * @param {KeyboardEvent[]} keyEvents
+   * @return {boolean}
+   */
   matches (keyEvents) {
     if (keyEvents.length < this.keyCount) {
       // not possibly long enough to be a match
@@ -599,6 +630,10 @@ export class KeySequence {
     return this.keys.map(key => key.toString(short)).join(', ')
   }
 
+  /**
+   * @param {KeySequence|string|Array<Key|string>} definitions
+   * @return {KeySequence}
+   */
   static parse (definitions) {
     if (definitions instanceof KeySequence) {
       return definitions
@@ -639,6 +674,11 @@ export class KeySequence {
 }
 
 export class KeySequenceListener {
+  /**
+   * @param {KeySequence|string} keys     the sequence to match
+   * @param {KeyReaction}        reaction the handler for the matched sequence
+   * @param {*}                  ref      a reference for removal of the handler
+   */
   constructor (keys, reaction, ref) {
     this.sequence = KeySequence.parse(keys)
     this.reaction = reaction
@@ -653,10 +693,18 @@ export class KeySequenceListener {
     return this.sequence.preventDefault
   }
 
+  /**
+   * @param {KeyboardEvent[]} keyEvents
+   * @return {boolean}
+   */
   matches (keyEvents) {
     return this.sequence.matches(keyEvents)
   }
 
+  /**
+   * @param {*} ref
+   * @return {boolean}
+   */
   hasRef (ref) {
     return this.ref === ref
   }
