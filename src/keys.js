@@ -72,7 +72,7 @@ export function formatKeyEvent (e, short = false, useMac = false) {
   if (e.shiftKey) k += ['Shift ', useMac ? '⇧' : '+'][+short]
   if (e.ctrlKey) k += ['Control ', '^'][+short]
   if (e.altKey) k += ['Alt ', useMac ? '⌥' : '#'][+short]
-  if (e.metaKey) k += [useMac ? 'Meta ' : 'Command ', useMac ? '⌘' : '@'][+short]
+  if (e.metaKey) k += [useMac ? 'Command ' : 'Meta ', useMac ? '⌘' : '@'][+short]
 
   const alias = codeToAlias(e.code)
   if (short && alias) {

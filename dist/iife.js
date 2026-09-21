@@ -110,7 +110,7 @@ var Keywatch = (function (exports) {
     if (e.shiftKey) k += ['Shift ', useMac ? '⇧' : '+'][+short];
     if (e.ctrlKey) k += ['Control ', '^'][+short];
     if (e.altKey) k += ['Alt ', useMac ? '⌥' : '#'][+short];
-    if (e.metaKey) k += [useMac ? 'Meta ' : 'Command ', useMac ? '⌘' : '@'][+short];
+    if (e.metaKey) k += [useMac ? 'Command ' : 'Meta ', useMac ? '⌘' : '@'][+short];
 
     const alias = codeToAlias(e.code);
     if (short && alias) {
@@ -217,12 +217,19 @@ var Keywatch = (function (exports) {
   // JSDoc notation for a KeyboardEvent
   /**
    * @callback KeyReaction
-   * @param {KeyboardEvent} event
-   * @param {KeySequence} the matched sequence
+   * @param {KeyboardEvent} event    the event that completed the sequence
+   * @param {KeySequence}   sequence the matched sequence
    */
 
   /**
-   * @typedef {KeySequence | Key | string | { [string]: KeyProvider }} KeyProvider
+   * An object of handlers, where every value is either a reaction or another level of
+   * keys - the levels are joined with a space when the object is unfolded.
+   *
+   * @typedef {Object<string, KeyReaction|KeyProviderObject>} KeyProviderObject
+   */
+
+  /**
+   * @typedef {KeySequence|Key|string|Array<*>|KeyProviderObject} KeyProvider
    */
 
   /**
@@ -238,7 +245,7 @@ var Keywatch = (function (exports) {
   /**
    * Register a Key or Sequence of Keys to a handler method.
    *
-   * @param {function(): KeyProvider|KeyProvider} sequence the key, sequence or KeyProvider to match
+   * @param {KeyProvider|function(): KeyProvider} sequence the key, sequence or KeyProvider to match
    * @param {KeyReaction|null}                    reaction the handler function to the sequence(s)
    * @param {*}                                   ref      a reference for removal of the handler
    * @return {Disposer}                                    a disposal function for the registered reactions
@@ -318,9 +325,9 @@ var Keywatch = (function (exports) {
   }
 
   /**
-   * @param {{ [string]: function(): void }} o
-   * @param {string} prefix
-   * @return {{sequence: string, handler: *}[]}
+   * @param {Object<string, *>} o      an object of handlers, possibly nested
+   * @param {string}            prefix the key prefix collected from the outer levels
+   * @return {Array<{keys: string, handler: KeyReaction}>}
    */
   function unfoldKeyObject (o, prefix) {
     return Object.keys(o).flatMap(key => {
@@ -384,10 +391,16 @@ var Keywatch = (function (exports) {
   }
 
   /**
+   * @typedef {Object} ScopedWatcher
+   * @property {function(KeyProvider, KeyReaction): Disposer} watch   registers keys under the scope
+   * @property {function(): void}                            unwatch disposes everything in the scope
+   */
+
+  /**
    * Returns a scoped watch helper.
    *
-   * @param ref
-   * @return {{watch(*=, *=): function(): void, unwatch(*=): void}|(function(): void)}
+   * @param {*} ref          the reference all watchers of this scope are registered under
+   * @return {ScopedWatcher}
    */
   function of (ref) {
     return {
@@ -463,6 +476,16 @@ var Keywatch = (function (exports) {
    * Represents a single Key for matching.
    */
   class Key {
+    /**
+     * @param {string}       code              the KeyboardEvent code or key to match
+     * @param {boolean}     [isCode=true]      match against event.code instead of event.key
+     * @param {boolean}     [shiftKey=false]   require the shift key to be down
+     * @param {boolean}     [ctrlKey=false]    require the control key to be down
+     * @param {boolean}     [altKey=false]     require the alt key to be down
+     * @param {boolean}     [metaKey=false]    require the meta key to be down
+     * @param {boolean|null} [inInput=null]    allow the match inside input elements
+     * @param {string}      [type='up']        the event type to match: up, down or press
+     */
     constructor (
       code,
       isCode = true,
@@ -483,6 +506,10 @@ var Keywatch = (function (exports) {
       this.type = (type.startsWith('key') ? type : 'key' + type).toLowerCase();
     }
 
+    /**
+     * @param {KeyboardEvent} e
+     * @return {boolean}
+     */
     matches (e) {
       // can't match if it is the wrong type (up/down/press)
       if (e.type !== this.type) return false
@@ -535,7 +562,7 @@ var Keywatch = (function (exports) {
     /**
      * Tries to parse a Key from a string definition.
      *
-     * @param {string} definition
+     * @param {Key|string} definition
      * @return {Key}
      */
     static parse (definition) {
@@ -609,6 +636,10 @@ var Keywatch = (function (exports) {
       return this.keys.length
     }
 
+    /**
+     * @param {KeyboardEvent[]} keyEvents
+     * @return {boolean}
+     */
     matches (keyEvents) {
       if (keyEvents.length < this.keyCount) {
         // not possibly long enough to be a match
@@ -637,6 +668,10 @@ var Keywatch = (function (exports) {
       return this.keys.map(key => key.toString(short)).join(', ')
     }
 
+    /**
+     * @param {KeySequence|string|Array<Key|string>} definitions
+     * @return {KeySequence}
+     */
     static parse (definitions) {
       if (definitions instanceof KeySequence) {
         return definitions
@@ -677,6 +712,11 @@ var Keywatch = (function (exports) {
   }
 
   class KeySequenceListener {
+    /**
+     * @param {KeySequence|string} keys     the sequence to match
+     * @param {KeyReaction}        reaction the handler for the matched sequence
+     * @param {*}                  ref      a reference for removal of the handler
+     */
     constructor (keys, reaction, ref) {
       this.sequence = KeySequence.parse(keys);
       this.reaction = reaction;
@@ -691,10 +731,18 @@ var Keywatch = (function (exports) {
       return this.sequence.preventDefault
     }
 
+    /**
+     * @param {KeyboardEvent[]} keyEvents
+     * @return {boolean}
+     */
     matches (keyEvents) {
       return this.sequence.matches(keyEvents)
     }
 
+    /**
+     * @param {*} ref
+     * @return {boolean}
+     */
     hasRef (ref) {
       return this.ref === ref
     }
@@ -711,122 +759,9 @@ var Keywatch = (function (exports) {
     window.module.hot.addDisposeHandler(tearDown);
   }
 
-  /**
-   * Internal function to handle Vue-Mixin binding for key-reactions.
-   *
-   * @param {Vue} instance the vue instance
-   * @param {*}   keys     the defined keys to watch
-   * @param {*}   options  watcher options
-   * @return {(function(): void)|Promise<* | (function(): void)>}
-   */
-  function watchKeys (instance, keys, options) {
-    // when a promise is provided
-    if (keys instanceof Promise) {
-      return keys.then(result => watchKeys(instance, result))
-    }
-    const unwatcher = unfoldKeyDefinition(keys).flatMap(definition => {
-      try {
-        const dispose = watchSequence(definition.sequence, definition.handler.bind(instance), instance);
-        return [dispose]
-      } catch (ex) {
-        console.error('Failed to watch %O', definition, ex);
-        return []
-      }
-    });
-    return () => unwatcher.forEach((dispose, idx) => {
-      try {
-        dispose();
-      } catch (err) {
-        console.warn('failed to dispose', dispose, idx, err);
-      }
-    })
-  }
-
-  /**
-   * VueJS Mixin
-   *
-   * Use it like this:
-   * {
-   *   mixins: [
-   *     Keywatch.Mixin({
-   *       'Control KeyN'(event) {
-   *         // this refers to the Vue instance
-   *         this.showSomeDialog()
-   *       }
-   *     })
-   *   ]
-   * }
-   *
-   * Or use the provided Method watchKeys(keys, handler)
-   *
-   * mounted() {
-   *   this.$watchKeys('Control KeyN', this.showSomeDialog)
-   * }
-   *
-   * @param {*} keys
-   * @param {*} options
-   * @return {{methods: {
-   *   $watchKeys(*=, *=): function(): void},
-   *   beforeDestroy(): void,
-   *   mounted(): undefined
-   * }}
-   */
-  function vueMixin (keys = null, options = {}) {
-    return {
-      mounted () {
-        if (!keys) {
-          // it's not required to watch shortcuts here
-          return
-        }
-
-        // watch property / computed
-        if (isString(keys)) {
-          let unwatch = Promise.resolve(() => {});
-          const updateWith = to => {
-            unwatch.then(disposer => {
-              try {
-                disposer();
-              } catch (ex) {
-                console.warn('failed to unwatch', this, ex);
-              }
-
-              if (to) {
-                unwatch = watchKeys(this, to);
-                if (!(unwatch instanceof Promise)) {
-                  unwatch = Promise.resolve(unwatch);
-                }
-              } else {
-                unwatch = Promise.resolve(() => {});
-              }
-            });
-          };
-          // run once on mounting
-          updateWith(this[keys]);
-          // run again when the data changes
-          this.$watch(keys, updateWith);
-          return
-        }
-
-        watchKeys(this, keys);
-      },
-      /**
-       * Automatically unwatch all watched keys
-       */
-      beforeDestroy () {
-        unwatchAll(this);
-      },
-      methods: {
-        $watchKeys (keys, handler) {
-          return watch(keys, handler, this)
-        },
-      }
-    }
-  }
-
   exports.Key = Key;
   exports.KeySequence = KeySequence;
   exports.KeySequenceListener = KeySequenceListener;
-  exports.Mixin = vueMixin;
   exports.formatKeyEvent = formatKeyEvent;
   exports.of = of;
   exports.unfoldKeyDefinition = unfoldKeyDefinition;
