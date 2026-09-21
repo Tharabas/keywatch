@@ -50,4 +50,3 @@ export {
   unfoldKeyDefinition,
   watch,
 } from './src/keys'
-export { default as Mixin } from './src/vue-mixin'
