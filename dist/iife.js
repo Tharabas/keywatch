@@ -152,8 +152,8 @@ var Keywatch = (function (exports) {
    */
   function tearDown () {
     if (!isActive) return
-    document.addEventListener('keyup', handleGlobalKeys);
-    document.addEventListener('keydown', handleGlobalKeys);
+    document.removeEventListener('keyup', handleGlobalKeys);
+    document.removeEventListener('keydown', handleGlobalKeys);
     isActive = false;
   }
 
@@ -581,7 +581,6 @@ var Keywatch = (function (exports) {
         contains(modifier, 'alt'),
         contains(modifier, 'meta'),
         !contains(modifier, 'noinput'),
-        last(parsed),
         type
       )
     }
@@ -730,7 +729,7 @@ var Keywatch = (function (exports) {
         const dispose = watchSequence(definition.sequence, definition.handler.bind(instance), instance);
         return [dispose]
       } catch (ex) {
-        console.error('Failed to watch %O', definition, err);
+        console.error('Failed to watch %O', definition, ex);
         return []
       }
     });

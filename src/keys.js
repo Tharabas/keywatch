@@ -114,8 +114,8 @@ function setUp () {
  */
 function tearDown () {
   if (!isActive) return
-  document.addEventListener('keyup', handleGlobalKeys)
-  document.addEventListener('keydown', handleGlobalKeys)
+  document.removeEventListener('keyup', handleGlobalKeys)
+  document.removeEventListener('keydown', handleGlobalKeys)
   isActive = false
 }
 
@@ -543,7 +543,6 @@ export class Key {
       contains(modifier, 'alt'),
       contains(modifier, 'meta'),
       !contains(modifier, 'noinput'),
-      last(parsed),
       type
     )
   }

@@ -149,8 +149,8 @@ function setUp () {
  */
 function tearDown () {
   if (!isActive) return
-  document.addEventListener('keyup', handleGlobalKeys);
-  document.addEventListener('keydown', handleGlobalKeys);
+  document.removeEventListener('keyup', handleGlobalKeys);
+  document.removeEventListener('keydown', handleGlobalKeys);
   isActive = false;
 }
 
@@ -578,7 +578,6 @@ class Key {
       contains(modifier, 'alt'),
       contains(modifier, 'meta'),
       !contains(modifier, 'noinput'),
-      last(parsed),
       type
     )
   }
@@ -727,7 +726,7 @@ function watchKeys (instance, keys, options) {
       const dispose = watchSequence(definition.sequence, definition.handler.bind(instance), instance);
       return [dispose]
     } catch (ex) {
-      console.error('Failed to watch %O', definition, err);
+      console.error('Failed to watch %O', definition, ex);
       return []
     }
   });

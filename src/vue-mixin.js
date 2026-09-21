@@ -19,7 +19,7 @@ function watchKeys (instance, keys, options) {
       const dispose = watchSequence(definition.sequence, definition.handler.bind(instance), instance)
       return [dispose]
     } catch (ex) {
-      console.error('Failed to watch %O', definition, err)
+      console.error('Failed to watch %O', definition, ex)
       return []
     }
   })
