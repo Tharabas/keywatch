@@ -10,12 +10,12 @@ You can configure page-wide keyboard shortcuts and bind them to handler function
 
 Example:
 ```js
-keywatch('^z', undo)
+watch('^z', undo)
 ```
 
 or see the DEMO.
 
-Additionally, it also provides a **vue.js mixin** to handle keyboard events only while the mixing component is mounted.
+Additionally, it also provides **Vue 3 bindings** to handle keyboard events only while a component is mounted.
 
 ## Getting Started
 
@@ -36,6 +36,11 @@ yarn add keywatch
 pnpm add keywatch
 ```
 
+### TypeScript
+
+Type definitions ship with the package and are generated from the sources, so no separate
+`@types` package is needed.
+
 ### Integration to any HTML Page
 
 Assuming you can use JavaScript Modules you can use the default provided method as a single point of entry. You probably won't need the rest, but can access it nevertheless. 
@@ -49,16 +54,33 @@ watch('Control KeyS', () => {
 </script>
 ```
 
-### Integration with vue.js
+### Integration with Vue 3
 
-For Integration in any vue.js component you can 
+The Vue bindings live in their own entry point, so the core stays free of any framework
+dependency. With the Composition API:
+
+```vue
+<script setup>
+import { watchKeys } from 'keywatch/vue'
+
+function doStuff () {
+  // ...
+}
+
+watchKeys({
+  'ctrl KeyD': doStuff,
+})
+</script>
+```
+
+The same with the Options API:
 
 ```js
-import Keywatch from 'keywatch'
+import { Mixin } from 'keywatch/vue'
 
 export default {
   mixins: [
-    Keywatch.Mixin({
+    Mixin({
       'ctrl KeyD' () { this.doStuff() },
     })
   ],
@@ -69,6 +91,8 @@ export default {
   }
 }
 ```
+
+keywatch 2 requires Vue 3. For Vue 2 use keywatch 1.x.
 
 ## Defining Watchers
 
@@ -186,32 +210,78 @@ watch('^z', () => this.undo(), reference)
 unwatchAll(reference)
 ```
 
-## Vue Mixin
+## Vue 3
 
-When working with Vue, you can utilize the `Keywatch.Mixin` to specify `KeySequences`, which should only be watched
-while a component is rendered.
+### watchKeys
+
+`watchKeys` is the Composition API binding. It watches the given keys for as long as the
+calling component is mounted and returns a disposer for everything else.
+
+```vue
+<script setup>
+import { watchKeys } from 'keywatch/vue'
+
+watchKeys({
+  'Alt KeyS': () => save(),
+  'Escape': () => close(),
+})
+</script>
+```
+
+Besides the definitions that `watch` accepts, it also takes a `ref`, a `computed` or a
+plain getter. Reactive sources are rebound whenever they change, so the watched keys can
+follow the state of the component:
 
 ```js
-import Keywatch from 'keywatch'
+const keys = computed(() => isEditing.value
+  ? { 'Escape': cancel, '^s': save }
+  : { 'KeyE': edit })
 
-new Vue({
+watchKeys(keys)
+```
+
+### Mixin
+
+For the Options API there is `Mixin`, which specifies the `KeySequences` that should only
+be watched while a component is rendered.
+
+```js
+import { createApp } from 'vue'
+import { Mixin } from 'keywatch/vue'
+
+createApp({
   mixins: [
-    Keywatch.Mixin({
+    Mixin({
       'Alt KeyS' () {
-        // 'this' is the vue instance 
+        // 'this' is the vue instance
         this.doStuff()
-      } 
+      }
     }),
   ],
   methods: {
     doStuff () {
-      // work, work 
+      // work, work
     }
   }
-})
+}).mount('#app')
 ```
 
-All watchers created like this will be disposed automatically during the components `beforeDestroy` method.
+Passing a string does not define a key: it names a reactive property or computed that
+provides the definitions, and the watchers are rebuilt whenever it changes.
+
+```js
+mixins: [Mixin('keys')],
+computed: {
+  keys () {
+    return { 'Escape': () => this.close() }
+  }
+}
+```
+
+The mixin also adds `$watchKeys(keys, handler)` to the instance for ad-hoc bindings.
+
+All watchers created like this are disposed automatically during the components
+`beforeUnmount` hook.
 
 ## Limitations
 
@@ -233,14 +303,14 @@ When defining the keys for a Vue mixin via object syntax, IntelliJ denoes the fu
 You can avoid this behaviour by using a quoted name:
 
 ```js
-  mixins: [Keywatch.Mixin({
+  mixins: [Mixin({
     ArrowUp () { },
     ArrowDown () { },
   })]
 ```
 
 ```js
-  mixins: [Keywatch.Mixin({
+  mixins: [Mixin({
     'ArrowUp' () { },
     'ArrowDown' () { },
   })]
@@ -256,7 +326,13 @@ The multi-key part of it came by accident when the need for a 2-key sequence cam
 
 ### Does it work with Hot Module Replacement (HMR)?
 
-It should. If not feel free to [open an issue](https://github.com/tharabas/keywatch/issues).
+The bindings are tied to the component lifecycle, so `watchKeys` and `Mixin` dispose their
+watchers on unmount and a reload rebinds them.
+
+Watchers registered directly through `watch` outside of a component are not covered by that.
+keywatch ships a dispose handler for the webpack style `module.hot`; under Vite
+(`import.meta.hot`) it does not fire, so dispose those watchers yourself. If something else
+misbehaves feel free to [open an issue](https://github.com/tharabas/keywatch/issues).
 
 ### Why is it called Keywatch?
 

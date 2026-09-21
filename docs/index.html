@@ -4,12 +4,8 @@
     <meta charset="UTF-8">
     <title>Keywatch DEMO</title>
     <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bulma@0.9.2/css/bulma.css"
-          integrity="sha256-yImvCCH14bBb1CP+8UKH4Kq6Hd77ErtYaM4V+QSvPwc="
-          crossorigin="anonymous">
-    <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/buefy@0.9.4/dist/buefy.min.css"
-          integrity="sha256-eUiH9fgckNBx/Haew+8UGdXpRQlKbdd7/tfZCzpXLFA="
+          href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css"
+          integrity="sha256-Z/om3xyp6V2PKtx8BPobFfo9JCV0cOvBDMaLmquRS+4="
           crossorigin="anonymous">
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/prism-themes@1.5.0/themes/prism-darcula.css"
@@ -22,16 +18,13 @@
 .message:last-child { margin-top: 1em; }
 .slide-enter-active { transition: all .5s ease-in-out; }
 .slide-leave-active { transition: all .5s ease-in-out; }
-.slide-enter    { opacity: 0; transform: translateY( 50px); }
+.slide-enter-from { opacity: 0; transform: translateY( 50px); }
 .slide-leave-to { opacity: 0; transform: translateY(-50px); }
 .slide-leave-to .step { margin-bottom: 0 }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.23.0/prism.min.js" data-manual></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.min.js"
-            integrity="sha256-KSlsysqp7TXtFo/FHjb1T9b425x3hrvzjMWaJyKbpcI="
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/buefy@0.9.4/dist/buefy.min.js"
-            integrity="sha256-E5bEDB8CfU4r0sLWd6+Cc/ZNf64uaaZdQ0k7afkcUaQ="
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.43/dist/vue.global.prod.js"
+            integrity="sha256-tyOUBS7vHu2hdS2zdYzhvm+IAWkD8i5SQcxzLqMHR44="
             crossorigin="anonymous"></script>
   </head>
   <body>
@@ -71,8 +64,8 @@
                 We can specify keyboard modifiers to further adjust if we only want to listen to key combinations.
                 These are <code>Shift</code>, <code>Alt</code>, <code>Control</code> and <code>Meta</code>.
                 The latter is <code>Command</code> on Macs and <code>Win</code> on Windows.
-                Each of them has a <em>us-ascii short</em> representation: <code>+#^@</code>,
-                and even accept the usual mac-keys <code>⇧⌥⌘</code>
+                Each of them has a <em>us-ascii short</em> representation: <code>+#^@</code>
+                <span v-if="isMac">and even accept the usual mac-keys <code>⇧⌥⌘</code></span>
               </p>
               <p>The following examples will trigger for the same actions</p>
 
@@ -174,15 +167,16 @@ watch("+^KeyE", action)</t-code>
     </div>
 
     <script src="../dist/iife.js"></script>
+    <script src="../dist/vue.iife.js"></script>
     <script>
-Vue.component('t-confirm', {
-  template: `<div class="has-text-centered" :class="'has-background-' + (value ? 'success' : 'danger')"><slot /></div>`,
+const TConfirm = {
+  template: `<div class="has-text-centered has-text-dark" :class="'has-background-' + (value ? 'success' : 'danger')"><slot /></div>`,
   props: {
     value: { type: Boolean, required: true }
   }
-})
+}
 
-Vue.component('t-page', {
+const TPage = {
   template: `
     <transition name="slide">
       <section v-if="currentPage === page" class="page"><slot /></section>
@@ -191,15 +185,15 @@ Vue.component('t-page', {
     page: { type: Number, required: true },
     currentPage: { type: Number, required: true },
   }
-})
+}
 
-Vue.component('t-step', {
+const TStep = {
   template: `
     <transition name="slide">
       <section v-if="isVisible" class="step">
         <slot />
         <transition v-if="$slots.confirm"  name="slide">
-          <div v-if="step <= this.minStep" class="message" :class="isConfirmed ? 'is-success' : 'is-danger'">
+          <div v-if="step <= minStep" class="message" :class="isConfirmed ? 'is-success' : 'is-danger'">
             <div class="message-body"><slot name="confirm" /></div>
           </div>
         </transition>
@@ -216,23 +210,22 @@ Vue.component('t-step', {
     isVisible () { return this.step >= this.minStep && this.step <= this.maxStep },
     isConfirmed () { return this.confirmed >= this.minStep },
   }
-})
+}
 
-Vue.component('t-code', {
+const TCode = {
   template: '<pre><code ref="code" class="language-javascript"><slot /></code></pre>',
   mounted () {
     this.$nextTick(() => {
       Prism.highlightElement(this.$refs.code)
     })
   }
-})
+}
 
-new Vue({
-  el: '#app',
+const app = Vue.createApp({
   mixins: [
-    Keywatch.Mixin('keys')
+    KeywatchVue.Mixin('keys')
   ],
-  data: {
+  data: () => ({
     page: 1,
     step: 1,
     confirmed: 0,
@@ -252,7 +245,7 @@ new Vue({
       ShiftAlt: false,
       ShiftControl: false,
     }
-  },
+  }),
   computed: {
     keys () {
       const keys = {}
@@ -318,6 +311,18 @@ new Vue({
     }
   },
 })
+
+app.component('t-confirm', TConfirm)
+app.component('t-page', TPage)
+app.component('t-step', TStep)
+app.component('t-code', TCode)
+
+// Vue 3 compiles in-DOM templates with whitespace: 'condense', which collapses the line
+// breaks inside the t-code blocks into single spaces. Vue 2 preserved them, so the code
+// samples need the old behaviour back.
+app.config.compilerOptions.whitespace = 'preserve'
+
+app.mount('#app')
     </script>
   </body>
 </html>

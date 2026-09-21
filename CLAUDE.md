@@ -5,15 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```sh
-npm run dist   # rollup build -> dist/{esm,esm.min,iife,iife.min}.js
+npm test               # vitest run + the type check
+npx vitest run test/keys.spec.js   # a single test file
+npx vitest             # watch mode
+npm run dist           # rollup (8 bundles) + tsc (declarations)
+npm run types:check    # emit the .d.ts and check test/types.test-d.ts against them
 ```
 
-There is no test setup (`npm test` exits 1), no linter and no dev server. Verification happens by
-hand in the browser via the demo pages in `docs/`.
+There is no linter and no dev server. Everything the tests cannot cover is verified by hand in the
+browser via the demo pages in `docs/`.
 
-`dist/` is checked into git (not in `.gitignore`) and both `docs/index.html` and `docs/viewer.html`
-load `../dist/iife.js`. A change in `src/` is therefore only visible in the demo after `npm run dist`,
-and a commit that touches `src/` usually has to carry the rebuilt `dist/` files with it.
+`dist/` is checked into git (not in `.gitignore`) and both demo pages load from it. A change in
+`src/` is therefore only visible in the demo after `npm run dist`, and a commit that touches `src/`
+usually has to carry the rebuilt `dist/` files with it.
 
 To try a change: `npm run dist`, then open `docs/viewer.html` (shows code/key/short/full for every
 key event and lets you test a binding) or `docs/index.html` (guided tutorial). Both are plain files,
@@ -21,9 +25,19 @@ key event and lets you test a binding) or `docs/index.html` (guided tutorial). B
 
 ## Architecture
 
-A dependency-free ES-module browser library. `index.js` is the package entry and only re-exports:
-the public API from `src/keys.js` plus the Vue mixin (default export of `src/vue-mixin.js`) as
-`Mixin`. `src/lib.js` holds four trivial helpers. Everything of substance is in `src/keys.js`.
+An ES-module browser library with **two entry points**, and that split is the load-bearing
+decision of the package:
+
+- `index.js` -> `keywatch` - the core. Re-exports `src/keys.js` and depends on nothing.
+- `vue.js` -> `keywatch/vue` - the Vue 3 bindings. Re-exports `src/vue.js`, the only module that
+  imports from `vue`.
+
+Keeping them apart is what lets the core bundle stay framework-free, which the README advertises.
+Anything importing from `vue` therefore belongs in `src/vue.js`, never in the core. `src/lib.js`
+holds four trivial helpers. Everything of substance is in `src/keys.js`.
+
+Rollup builds both entries (`esm`/`iife`, each plus a `.min`); the vue entry keeps `vue` external
+and maps it to the global `Vue` for the IIFE build, whose global is `KeywatchVue`.
 
 ### Global singleton state
 
@@ -88,14 +102,44 @@ the disposer returned by `watch`, `unwatchAll(ref)` for everything registered un
 or `of(ref)` for a scoped `{ watch, unwatch }` pair. The bottom of `keys.js` registers `tearDown`
 as an HMR dispose handler.
 
-### Vue mixin
+### Vue 3 bindings
 
-`src/vue-mixin.js` targets **Vue 2** (`mounted` / `beforeDestroy` / `this.$watch`). It uses the
-component instance itself as the `ref`, binds every handler to it, and calls `unwatchAll(this)` in
-`beforeDestroy`, so bindings live exactly as long as the component. It calls the internal
-`watchSequence` directly, not `watch`.
+`src/vue.js` offers both APIs on top of one shared helper, `bindKeys(ref, keys, bindTo)`, which
+calls the internal `watchSequence` directly rather than `watch`, and resolves a `Promise`
+definition transparently (a disposal before it settles keeps the late definitions from being
+registered at all).
 
-Passing a **string** to `Mixin(...)` does not mean a key definition - it is the name of a reactive
-property or computed that supplies the definitions, and the mixin re-watches on every change of it.
-Definitions may also be a `Promise`. `this.$watchKeys(keys, handler)` is available for ad-hoc
-bindings from inside a component.
+- `watchKeys(keys, ref?)` - Composition API. Uses the component instance as the `ref`, disposes via
+  `onUnmounted`, and returns the disposer. A `Ref`, `ComputedRef` or getter is treated as a
+  **reactive source** and rebound through Vue's own `watch`. Handlers are not bound - there is no
+  `this` in `setup`.
+- `Mixin(keys?)` - Options API. Binds every handler to the instance and disposes in
+  `beforeUnmount`. Passing a **string** does not mean a key definition: it names a reactive
+  property or computed supplying them, and the mixin re-binds on every change via `this.$watch`.
+  It also adds `$watchKeys(keys, handler)` to the instance, which survives Vue 3 because the public
+  instance proxy falls through to `ctx` for non-reserved `$` names.
+
+The hook name is the trap here: Vue 3 silently ignores `beforeDestroy`, so watchers would pile up
+across mounts instead of erroring. `test/vue.spec.js` guards that with an explicit
+mount/unmount/remount test - keep it.
+
+### Type declarations
+
+The `.d.ts` are generated from JSDoc (`tsconfig.types.json`), so **the JSDoc is the type source**.
+Two consequences when editing:
+
+- A malformed or missing comment degrades a signature to `any` instead of failing the build.
+  `test/types.test-d.ts` exists to catch exactly that and runs as part of `npm test`.
+- JSDoc must stay TypeScript-parseable: use `Object<string, X>` rather than `{ [string]: X }`, give
+  every `@param` a name, and prefer a named `@typedef` over a long inline object type.
+
+### Demo pages
+
+Both pages pull Vue 3 and their CSS from jsDelivr with SRI hashes, so changing a CDN version means
+recomputing the hash (`curl -s <url> | openssl dgst -sha256 -binary | openssl base64 -A`).
+
+- `docs/index.html` loads both bundles, because it uses the mixin through the global
+  `KeywatchVue`. It is the end-to-end check for the string form of `Mixin`.
+- `docs/viewer.html` uses Buefy 3 (`b-field`, `b-switch`, `b-input`, `b-button`) and needs
+  Bulma 1.x. Vue 3 does not auto-install plugins, and the UMD build exposes the plugin as
+  `Buefy.default`, not on the namespace - `app.use(Buefy.default)`.
