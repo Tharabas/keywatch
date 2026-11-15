@@ -299,7 +299,7 @@ How do I work with conflicting keys?
 
 ### Function is unused (IntelliJ / WebStorm)
 
-When defining the keys for a Vue mixin via object syntax, IntelliJ denoes the funcitons as *unused*. This is tecnically correct as the functions may never be used with that name.
+When defining the keys for a Vue mixin via object syntax, IntelliJ denotes the functions as *unused*. This is technically correct as the functions may never be used with that name.
 You can avoid this behaviour by using a quoted name:
 
 ```js
