@@ -254,8 +254,9 @@ watched at all.
 
 ### Mixin
 
-For the Options API there is `Mixin`, which specifies the `KeySequences` that should only
-be watched while a component is rendered.
+`Mixin` is the Options API binding. It starts watching in the component's `mounted` hook and
+disposes every watcher automatically in `beforeUnmount`, so the keys are only active while
+the component is mounted.
 
 ```js
 import { createApp } from 'vue'
@@ -265,7 +266,7 @@ createApp({
   mixins: [
     Mixin({
       'Alt KeyS' () {
-        // 'this' is the vue instance
+        // 'this' is the component instance
         this.doStuff()
       }
     }),
@@ -278,22 +279,74 @@ createApp({
 }).mount('#app')
 ```
 
-Passing a string does not define a key: it names a reactive property or computed that
-provides the definitions, and the watchers are rebuilt whenever it changes.
+`Mixin` accepts the same definitions as `watch`. Every handler is bound to the component
+instance, so `this` refers to it - as long as the handler is written as a method or a
+`function`. An arrow function keeps the `this` of its surrounding scope instead.
+
+#### Reactive definitions
+
+Passing a string does not define a key: it names a data property, prop or computed of the
+component that provides the definitions. The watchers are rebuilt whenever its value changes,
+and a falsy value watches nothing at all.
 
 ```js
 mixins: [Mixin('keys')],
+data: () => ({ isEditing: false }),
 computed: {
   keys () {
-    return { 'Escape': () => this.close() }
+    return this.isEditing
+      ? { 'Escape': () => this.cancel(), '^s': () => this.save() }
+      : { 'KeyE': () => this.edit() }
   }
 }
 ```
 
-The mixin also adds `$watchKeys(keys, handler)` to the instance for ad-hoc bindings.
+This is the Options API counterpart to passing a `computed` to `watchKeys`.
 
-All watchers created like this are disposed automatically during the components
-`beforeUnmount` hook.
+#### Promised definitions
+
+A `Promise` that resolves to a definition is accepted as well, both directly and as the value
+of a named property. The keys are watched as soon as it has resolved, and if the component is
+unmounted before that, nothing is watched at all.
+
+```js
+mixins: [Mixin(import('./shortcuts.js').then(module => module.default))]
+```
+
+#### $watchKeys
+
+The mixin also adds `$watchKeys(keys, handler)` to the instance, for bindings that are set up
+later on. It takes a definition and a handler like `watch` and returns a disposer. Whatever
+is still watched on unmount is disposed along with the rest.
+
+Unlike the definitions passed to `Mixin`, the handler is not bound to the instance. In Vue 3
+that rarely matters: methods are already bound, and an arrow function keeps the `this` of the
+hook it was written in.
+
+Called without an argument, the mixin watches nothing by itself and only provides
+`$watchKeys`:
+
+```js
+export default {
+  mixins: [Mixin()],
+  mounted () {
+    this.$watchKeys('^s', this.save)
+  },
+  methods: {
+    save () {
+      // ...
+    }
+  }
+}
+```
+
+#### Migrating from keywatch 1.x
+
+- The mixin moved to its own entry point: `import { Mixin } from 'keywatch/vue'` instead of
+  `'keywatch'`. Without a bundler it is `KeywatchVue.Mixin` from `dist/vue.iife.js` instead of
+  `Keywatch.Mixin`.
+- The second parameter `options` is gone. It was never evaluated.
+- The watchers are disposed in `beforeUnmount`, since Vue 3 no longer calls `beforeDestroy`.
 
 ## Limitations
 
