@@ -180,7 +180,15 @@ watch('i,d,d,q,d', enableGodmode)
 ## Handling Events
 
 In most cases you won't care much for the event, that triggered the key sequence, but in case you do,
-you can access it in the  
+you can access it as the first argument of the handler. The second argument is the `KeySequence`
+that matched.
+
+```js
+watch('i,d,d,q,d', (event, sequence) => {
+  // event is the KeyboardEvent of the last key, the 'd'
+  console.log(event.target, sequence)
+})
+```
 
 ## Unwatching
 
@@ -239,6 +247,10 @@ const keys = computed(() => isEditing.value
 
 watchKeys(keys)
 ```
+
+A `Promise` that resolves to a definition is accepted as well. Nothing is watched until it has
+resolved, and if the component is unmounted or the disposer is called before that, nothing is
+watched at all.
 
 ### Mixin
 
@@ -300,7 +312,7 @@ How do I work with conflicting keys?
 ### Function is unused (IntelliJ / WebStorm)
 
 When defining the keys for a Vue mixin via object syntax, IntelliJ denotes the functions as *unused*. This is technically correct as the functions may never be used with that name.
-You can avoid this behaviour by using a quoted name:
+You can avoid this behaviour by using a quoted name. Instead of
 
 ```js
   mixins: [Mixin({
@@ -308,6 +320,8 @@ You can avoid this behaviour by using a quoted name:
     ArrowDown () { },
   })]
 ```
+
+write
 
 ```js
   mixins: [Mixin({
