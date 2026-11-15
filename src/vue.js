@@ -141,6 +141,10 @@ export function watchKeys (keys, ref = null) {
  * @return {import('vue').ComponentOptions}     a mixin for the Options API
  */
 export function Mixin (keys = null) {
+  // unwatchAll() only removes what is registered already, so a promised definition that
+  // resolves after the unmount needs the disposer of bindKeys() to stay unregistered
+  const disposers = new WeakMap()
+
   return {
     mounted () {
       if (!keys) {
@@ -158,16 +162,24 @@ export function Mixin (keys = null) {
         // bind once on mounting, then again whenever the property changes
         rebind(this[keys])
         this.$watch(keys, rebind)
+        disposers.set(this, () => dispose())
         return
       }
 
-      bindKeys(this, keys, this)
+      disposers.set(this, bindKeys(this, keys, this))
     },
 
     /**
      * Automatically unwatch all watched keys
      */
     beforeUnmount () {
+      const dispose = disposers.get(this)
+      if (dispose) {
+        dispose()
+        disposers.delete(this)
+      }
+
+      // also covers everything registered through $watchKeys
       unwatchAll(this)
     },
 

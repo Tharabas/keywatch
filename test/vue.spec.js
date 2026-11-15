@@ -99,6 +99,57 @@ describe('Mixin', () => {
     wrapper.unmount()
   })
 
+  it('resolves a promised definition', async () => {
+    const reaction = vi.fn()
+    const wrapper = mount(defineComponent({
+      mixins: [Mixin(Promise.resolve({ KeyA: reaction }))],
+      render,
+    }))
+
+    await nextTick()
+    press('KeyA')
+    wrapper.unmount()
+
+    expect(reaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not watch a promised definition that resolves after unmount', async () => {
+    const reaction = vi.fn()
+    let resolve
+    const keys = new Promise(resolver => { resolve = resolver })
+    const wrapper = mount(defineComponent({
+      mixins: [Mixin(keys)],
+      render,
+    }))
+
+    wrapper.unmount()
+    resolve({ KeyA: reaction })
+    await keys
+    press('KeyA')
+
+    expect(reaction).not.toHaveBeenCalled()
+  })
+
+  it('does not watch a promised property value that resolves after unmount', async () => {
+    const reaction = vi.fn()
+    let resolve
+    const keys = new Promise(resolver => { resolve = resolver })
+    const wrapper = mount(defineComponent({
+      mixins: [Mixin('keys')],
+      computed: {
+        keys: () => keys,
+      },
+      render,
+    }))
+
+    wrapper.unmount()
+    resolve({ KeyA: reaction })
+    await keys
+    press('KeyA')
+
+    expect(reaction).not.toHaveBeenCalled()
+  })
+
   it('provides $watchKeys on the instance', () => {
     const reaction = vi.fn()
     const wrapper = mount(defineComponent({
