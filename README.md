@@ -101,7 +101,7 @@ This can be done via very simple to rather complex configurations. Let's get to 
 
 ### Single Keys
 
-To catch a keyboard input we have to determine either it's **key** or **code**.
+To catch a keyboard input we have to determine either its **key** or **code**.
 The naive way to do this is to type it:
 
 ```js
@@ -145,7 +145,7 @@ watch("Shift Alt KeyA", action) // will not trigger on Shift-A or Alt-A alone
 
 #### Ignoring in Input-Fields
 
-If you don't want to execute the shortcut while I'm actively editing an `INPUT|TEXTAREA|SELECT`, use the `NoInput` (short `:`) prefix.
+If you don't want to execute the shortcut while you're actively editing an `INPUT|TEXTAREA|SELECT`, use the `NoInput` (short `:`) prefix.
 ```js
 watch('NoInput KeyD', doStuff)
 watch(':d', doStuff)
@@ -192,7 +192,7 @@ watch('i,d,d,q,d', (event, sequence) => {
 
 ## Unwatching
 
-In order to *clean up* after you have used a watcher the `watch` function will return itself return a function,
+In order to *clean up* after you have used a watcher the `watch` function will itself return a function,
 that disposes all watchers it has created.
 
 ```js
@@ -387,8 +387,8 @@ write
 
 ### What is it good for?
 
-It emerged from several work projects where we created intranet web apps, that replaced old terminal alls.
-These original apps made heavy use of keyboard shortcuts, wich we wanted to do as well.
+It emerged from several work projects where we created intranet web apps, that replaced old terminal apps.
+These original apps made heavy use of keyboard shortcuts, which we wanted to do as well.
 The multi-key part of it came by accident when the need for a 2-key sequence came up. So here we are.
 
 ### Does it work with Hot Module Replacement (HMR)?
@@ -404,7 +404,7 @@ misbehaves feel free to [open an issue](https://github.com/tharabas/keywatch/iss
 ### Why is it called Keywatch?
 
 It's short, describes what's primarily done by the library and last, but not least, the npm name was available.
-When I stared working on it, the name was *Shortcuts*.
+When I started working on it, the name was *Shortcuts*.
 
 ### Is this all?
 
