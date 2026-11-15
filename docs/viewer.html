@@ -109,7 +109,7 @@
                     </div>
                   </div>
                 </div>
-                <div v-if="keySequences.length > 0">
+                <div v-if="keySequences.length > 0" class="mt-3">
                   <b-field label="Watching">
                     <ul>
                       <li v-for="(seq, index) in keySequences" :key="index">
@@ -119,13 +119,16 @@
                   </b-field>
                 </div>
 
-                <b-field label="Last hits">
+                <b-field label="Last hits" class="mt-3">
                   <ul>
                     <li v-for="(hit, index) in lastHits" :key="index">
                       {{ index + 1 }}. <kbd>{{ hit }}</kbd>
                     </li>
                   </ul>
                 </b-field>
+                <b-message v-if="lastHits.length === 0" type="is-grey">
+                  No hits yet.
+                </b-message>
 
               </div>
             </div>
